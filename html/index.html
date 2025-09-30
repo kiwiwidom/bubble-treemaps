@@ -44,13 +44,14 @@
             let contourGroup = svg.append("g")
                 .attr("class", "contour");
 
-            contourGroup.selectAll("path")
-                .data(bubbletreemap.getContour())
-                .enter().append("path")
-                .attr("d", function(arc) { return arc.d; })
-                .style("stroke", "black")
-                .style("stroke-width", function(arc) { return arc.strokeWidth; })
-                .attr("transform", function(arc) {return arc.transform;});
+        contourGroup.selectAll("path")
+            .data(bubbletreemap.getContour())
+            .enter().append("path")
+            .attr("d", function(arc) { return arc.d; })
+            .style("stroke", "black")
+            .style("stroke-width", function(arc) { return arc.strokeWidth; })
+            .style("stroke-dasharray", "6,4") // <-- Add this line for dashed lines
+            .attr("transform", function(arc) {return arc.transform;});
 
             // Draw circles.
             let circleGroup = svg.append("g")

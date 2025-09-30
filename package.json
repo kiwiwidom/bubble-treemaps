@@ -19,7 +19,7 @@
     "url": "https://github.com/TLow0/d3-bubbletreemap.git"
   },
   "scripts": {
-    "build": "rm -rf build && mkdir build && rollup -g planck-js:planck,tinycolor2:tinycolor -f umd -n d3 -o build/d3-bubbletreemap.js -- index.js",
+    "build": "rimraf build && mkdir build && rollup -g planck-js:planck,tinycolor2:tinycolor -f umd -n d3 -o build/d3-bubbletreemap.js -- index.js",
     "minimize": "npm run build && uglifyjs build/d3-bubbletreemap.js -c -m -o build/d3-bubbletreemap.min.js",
     "pack": "zip -j build/d3-bubbletreemap.zip -- LICENSE README.md build/d3-bubbletreemap.js build/d3-bubbletreemap.min.js"
   },
@@ -30,6 +30,7 @@
     "tinycolor2": "^1.4.1"
   },
   "devDependencies": {
+    "rimraf": "^6.0.1",
     "rollup": "^0.27.1",
     "tape": "^4.8.0",
     "uglify-js-es6": "^2.8.9"

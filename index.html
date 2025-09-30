@@ -2,22 +2,22 @@
 <html lang="en" style="width:100%;height:100%;margin:0;padding:0;">
 <head>
     <meta charset="UTF-8">
-    <title>Bubble Treemaps for Uncertainty Visualization - Jochen Görtler (@grtlr)</title>
+    <title>Bubble Treemaps - Styled</title>
     <script type='text/javascript' src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <script type='text/javascript' src="https://d3js.org/d3.v4.js"></script>
     <script type='text/javascript' src="https://cdn.jsdelivr.net/planck/0.1/planck.js"></script>
-    <script type='text/javascript' src="./build/d3-bubbletreemap.js"></script>
+    <script type='text/javascript' src="https://cdn.jsdelivr.net/gh/grtlr/bubble-treemaps@master/build/d3-bubbletreemap.js"></script>
     <script>
         let working = false;
 
         function doIt() {
-            if(!working) {
+            if (!working) {
                 working = true;
 
                 let jsonData = undefined;
                 try {
                     jsonData = JSON.parse(document.getElementById("jsonInputField").value);
-                } catch(e) {}
+                } catch (e) {}
 
                 if (jsonData) {
                     let svg = d3.select("#svgCircles");
@@ -36,8 +36,13 @@
         function drawChart(data, svg, padding, curvature) {
             // Create hierarchy.
             let root = d3.hierarchy(data)
-                .sum(function(d) { return d.size; })
-                .sort(function(a, b) { return b.value - a.value; });
+                .sum(function(d) {
+                    // Correctly sum sizes, handling nodes without a 'size' property.
+                    return d.size || 0;
+                })
+                .sort(function(a, b) {
+                    return b.value - a.value;
+                });
 
             let renderedSVGSize = svg.node().getBoundingClientRect();
 
@@ -48,26 +53,45 @@
                 .hierarchyRoot(root)
                 .width(renderedSVGSize.width)
                 .height(renderedSVGSize.height)
-                .colormap(["#8dd3c7", "#ffffb3", "#bebada", "#fb8072", "#80b1d3", "#fdb462", "#b3de69", "#fccde5", "#d9d9d9", "#bc80bd", "#ccebc5", "#ffed6f"]); // Color brewer: 12-class Paired
+                .colormap(["#f46d43", "#fee08b", "#d53e2a", "#fdae61", "#f781bf", "#999999"]);
 
             // Do layout and coloring.
             let hierarchyRoot = bubbletreemap.doLayout().doColoring().hierarchyRoot();
 
-            let leafNodes = hierarchyRoot.descendants().filter(function (candidate) {
+            let leafNodes = hierarchyRoot.descendants().filter(function(candidate) {
                 return !candidate.children;
             });
+             
+            let parentNodes = hierarchyRoot.descendants().filter(function(candidate) {
+                 return candidate.children && candidate.depth > 0;
+            });
+
 
             // Draw contour.
             let contourGroup = svg.append("g")
                 .attr("class", "contour");
-
-            contourGroup.selectAll("path")
+                
+            contourGroup.selectAll("path.outer")
                 .data(bubbletreemap.getContour())
                 .enter().append("path")
+                .attr("class", "outer")
                 .attr("d", function(arc) { return arc.d; })
-                .style("stroke", "black")
-                .style("stroke-width", function(arc) { return arc.strokeWidth; })
-                .attr("transform", function(arc) {return arc.transform;});
+                .style("stroke", "#4393c3")
+                .style("fill", "none")
+                .style("stroke-width", "3.5px")
+                .style("stroke-dasharray", "10, 10") 
+                .attr("transform", function(arc) { return arc.transform; });
+
+            contourGroup.selectAll("path.inner")
+                .data(bubbletreemap.getContour())
+                .enter().append("path")
+                .attr("class", "inner")
+                .attr("d", function(arc) { return arc.d; })
+                .style("stroke", "#92c5de")
+                .style("fill", "none")
+                .style("stroke-width", "2px")
+                .attr("transform", function(arc) { return arc.transform; });
+
 
             // Draw circles.
             let circleGroup = svg.append("g")
@@ -80,131 +104,126 @@
                 .attr("cx", function(d) { return d.x; })
                 .attr("cy", function(d) { return d.y; })
                 .style("fill", function(d) { return d.color; })
-                .style("stroke", "black")
-                .style("stroke-width", "2");
+                .style("stroke", function(d) { return d3.rgb(d.color).darker(0.8); })
+                .style("stroke-width", "2px");
+
+            // Add labels for parent nodes
+            let labelGroup = svg.append("g")
+                 .attr("class", "labels");
+
+            let labels = labelGroup.selectAll("g")
+                .data(parentNodes)
+                .enter().append("g")
+                .attr("transform", function(d) {
+                    // MODIFICATION: Calculate a better position for the label.
+                    // Find the child circle that is highest up in the group.
+                    const topMostChildIndex = d3.scan(d.children, (a, b) => (a.y - a.r) - (b.y - b.r));
+                    const topMostChild = d.children[topMostChildIndex];
+                    
+                    // Position the label 10px above the topmost point of that circle.
+                    const labelX = d.x;
+                    const labelY = topMostChild.y - topMostChild.r - 10;
+                    
+                    return "translate(" + labelX + "," + labelY + ")";
+                });
+
+            // Add text to the labels
+            labels.append("text")
+                .attr("dy", "0.3em")
+                .style("text-anchor", "middle")
+                .style("font-family", "Arial, sans-serif")
+                .style("font-size", "14px")
+                .style("fill", "#333")
+                .text(function(d) { return d.data.name; });
+            
+            // Add a background rectangle to each label
+            labels.each(function() {
+                let textNode = d3.select(this).select("text");
+                let bbox = textNode.node().getBBox();
+                let padding = 5;
+                
+                d3.select(this).insert("rect", "text")
+                    .attr("x", bbox.x - padding)
+                    .attr("y", bbox.y - padding)
+                    .attr("width", bbox.width + (padding * 2))
+                    .attr("height", bbox.height + (padding * 2))
+                    .style("fill", "white")
+                    .style("opacity", 0.75)
+                    .attr("rx", 8) 
+                    .attr("ry", 8);
+            });
         }
     </script>
 </head>
-<body onload="doIt()" style="width:100%;height:99%;margin:0;padding:0;">
+<body onload="doIt()" style="width:100%;height:99%;margin:0;padding:0; font-family: Arial, sans-serif;">
     <div id="svgCirclesContainer" style="float:left; width: 50%; height: 100%;">
         <svg id="svgCircles" width="100%" height="100%"></svg>
     </div>
 
     <div style="position: absolute; left:20px; bottom:40px;" id="paddingSliderContainer">
-        Padding: <input style="background:grey;position: absolute; left:100px" type="range" min="0" max="100" value="10" class="slider" id="paddingSlider" onchange="doIt()">
+        Padding: <input style="position: absolute; left:100px; vertical-align: middle;" type="range" min="0" max="100" value="10" class="slider" id="paddingSlider" oninput="document.getElementById('paddingValue').innerText = this.value; doIt();">
+        <span id="paddingValue" style="position: absolute; left: 240px; vertical-align: middle;">10</span>
     </div>
     <div style="position: absolute; left:20px; bottom:80px;" id="curvatureSliderContainer">
-        Smoothness: <input style="background:grey;position: absolute; left:100px" type="range" min="1" max="100" value="10" class="slider" id="curvatureSlider" onchange="doIt()">
+        Smoothness: <input style="position: absolute; left:100px; vertical-align: middle;" type="range" min="1" max="100" value="10" class="slider" id="curvatureSlider" oninput="document.getElementById('curvatureValue').innerText = this.value; doIt();">
+        <span id="curvatureValue" style="position: absolute; left: 240px; vertical-align: middle;">10</span>
     </div>
 
     <div id="jsonInputFieldContainer" style="float:right; width: 50%; height: 100%;">
-        <textarea id="jsonInputField" type="text" style="float:right; width: 100%; height: 100%;" oninput="doIt()">
+        <textarea id="jsonInputField" type="text" style="float:right; width: 100%; height: 100%; box-sizing: border-box;" oninput="doIt()">
 {
   "name": "Eve",
   "uncertainty": 7,
   "children": [
     {
-      "name": "Cain",
+      "name": "Train",
       "uncertainty": 10,
-      "size": 35
+       "children": [
+         {
+            "name": "T1", "size": 35, "uncertainty": 5
+         },
+         {
+            "name": "T2", "size": 25, "uncertainty": 5
+         },
+         {
+            "name": "T3", "size": 25, "uncertainty": 5
+         }
+      ]
     },
     {
-      "name": "Seth",
+      "name": "Platform",
+      "uncertainty": 3,
+      "children": [
+        { "name": "P1", "size": 30 },
+        { "name": "P2", "size": 25 },
+        { "name": "P3", "size": 25 }
+      ]
+    },
+    {
+      "name": "Queue",
       "uncertainty": 5,
       "children": [
         {
-          "name": "Marc",
-          "size": 20,
-          "uncertainty": 2,
-          "children": [
-            {
-              "name": "A1",
-              "size": 10,
-              "uncertainty": 0
-            },
-            {
-              "name": "A2",
-              "size": 15,
-              "uncertainty": 5
-            },
-            {
-              "name": "A3",
-              "size": 20,
-              "uncertainty": 7
-            }
-          ]
-        },
-        {
           "name": "Janine",
           "size": 50,
-          "uncertainty": 4,
-          "children": [
-            {
-              "name": "B1",
-              "size": 12,
-              "uncertainty": 3
-            },
-            {
-              "name": "B2",
-              "size": 8,
-              "uncertainty": 3
-            },
-            {
-              "name": "B3",
-              "size": 15,
-              "uncertainty": 3
-            }
-          ]
+          "uncertainty": 4
         },
         {
-          "name": "Luke",
-          "size": 40,
-          "uncertainty": 2,
-          "children": [
-            {
-              "name": "C1",
-              "size": 3,
-              "uncertainty": 3
-            },
-            {
-              "name": "C2",
-              "size": 8,
-              "uncertainty": 3
-            },
-            {
-              "name": "C3",
-              "size": 5,
-              "uncertainty": 3
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Oli",
-      "uncertainty": 3,
-      "size": 30
-    },
-    {
-      "name": "Awan",
-      "uncertainty": 3,
-      "children": [
-        {
-          "name": "David",
-          "uncertainty": 5,
-          "size": 76
+          "name": "A1",
+          "size": 10,
+          "uncertainty": 0
         },
         {
-          "name": "Peter",
-          "uncertainty": 3,
-          "size": 23
+          "name": "A2",
+          "size": 15,
+          "uncertainty": 5
+        },
+        {
+          "name": "A3",
+          "size": 20,
+          "uncertainty": 7
         }
       ]
-    },
-    {
-      "name": "Horst",
-      "uncertainty": 3,
-      "size": 80
     }
   ]
 }
