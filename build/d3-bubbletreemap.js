@@ -1,8 +1,8 @@
 (function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('planck-js')) :
-    typeof define === 'function' && define.amd ? define(['exports', 'planck-js'], factory) :
-    (factory((global.d3 = global.d3 || {}),global.planck));
-}(this, function (exports,planck) { 'use strict';
+    typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('planck-js'), require('d3')) :
+    typeof define === 'function' && define.amd ? define(['exports', 'planck-js', 'd3'], factory) :
+    (factory((global.d3 = global.d3 || {}),global.planck,global.d3$1));
+}(this, function (exports,planck,d3$1) { 'use strict';
 
     function getLayerClusters(hierarchyRoot, layerDepth, padding) {
         var clusters = [];
@@ -464,20 +464,35 @@
         return paths;
     }
 
+    // make sure d3 is available here
+
     function contourHierarchy(hierarchyRoot, padding, curvature) {
         let contours = [];
-        for(let layerDepth = hierarchyRoot.height - 1; layerDepth >= 0; layerDepth--) {
-            // Get clusters of circles on this layer.
+        for (let layerDepth = hierarchyRoot.height - 1; layerDepth >= 0; layerDepth--) {
             let layerClusters = getLayerClusters(hierarchyRoot, layerDepth, padding);
 
-            // Create contour for each cluster.
             layerClusters.forEach(function(cluster) {
                 let generatedContour = contour(cluster.nodes, curvature);
 
-                // Assign color to contour.
-                generatedContour.forEach(function(segment) {
-                    segment.strokeWidth = cluster.parent.uncertainty;
-                });
+                // 🔹 Fallback for single-child clusters
+                if ((!generatedContour || generatedContour.length === 0) && cluster.nodes.length === 1) {
+                    let node = cluster.nodes[0];
+
+                    generatedContour = [{
+                        d: d3$1.arc()({
+                            innerRadius: node.r + padding,
+                            outerRadius: node.r + padding,
+                            startAngle: 0,
+                            endAngle: 2 * Math.PI
+                        }),
+                        transform: `translate(${node.x},${node.y})`,
+                        strokeWidth: cluster.parent.uncertainty
+                    }];
+                } else {
+                    generatedContour.forEach(function(segment) {
+                        segment.strokeWidth = cluster.parent.uncertainty;
+                    });
+                }
 
                 contours = contours.concat(generatedContour);
             });
