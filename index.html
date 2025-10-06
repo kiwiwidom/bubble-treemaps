@@ -87,43 +87,39 @@
                  return candidate.children && candidate.depth > 0;
             });
 
-            // Draw contour (now uses uncertaintySliderValue for opacity)
-            let contourGroup = svg.append("g")
-                .attr("class", "contour");
-                
-            let dashLength, gapLength;
-            if (uncertaintySliderValue === 0) {
-                dashLength = 0; // solid line
-                gapLength = 0;
-            } else {
-                dashLength = Math.max(2, 12 - uncertaintySliderValue); // More uncertainty = shorter dashes
-                gapLength = Math.max(1, 10 - uncertaintySliderValue);  // More uncertainty = shorter gaps
-            }
+// Draw contour (smooth adaptive dashes based on uncertainty)
+let contourGroup = svg.append("g")
+    .attr("class", "contour");
 
-            contourGroup.selectAll("path.outer")
-                .data(bubbletreemap.getContour())
-                .enter().append("path")
-                .attr("class", "outer")
-                .attr("d", function(arc) { return arc.d; })
-                .style("fill", "none")
-                .style("stroke", "#bbb")
-                .style("stroke-width", "3.5px")
-                .style("stroke-dasharray", dashLength === 0 ? "none" : (dashLength + ", " + gapLength))
-                .style("opacity", 1)
-                .attr("transform", function(arc) { return arc.transform; });
+contourGroup.selectAll("path")
+  .data(bubbletreemap.getContour())
+  .enter().append("path")
+  .attr("d", d => d.d)
+  .style("fill", "none")
+  .style("stroke", "#999")
+  .style("stroke-width", "2.5px")
+  .each(function(d) {
+    const totalLength = this.getTotalLength();
+    const u = uncertaintySliderValue / 10; // normalize (0–10 → 0–1)
 
-            contourGroup.selectAll("path.inner")
-                .data(bubbletreemap.getContour())
-                .enter().append("path")
-                .attr("class", "inner")
-                .attr("d", function(arc) { return arc.d; })
-                // .style("stroke", "#bbb")
-                .style("fill", "none")
-                .style("stroke-width", "2px")
-                .style("stroke-dasharray", dashLength === 0 ? "none" : (dashLength/2 + ", " + gapLength/2))
-                .style("opacity", 1)
-                .attr("transform", function(arc) { return arc.transform; });
+    // --- Smoothly interpolate dash & gap lengths ---
+    // As uncertainty ↑ → dash shorter, gap wider
+    const dashLength = 20 - (u * 10); // 20 → 10
+    const gapLength  = 8 + (u * 18);  // 8 → 26
 
+    // --- Evenly space pattern so it wraps nicely around edges ---
+    const patternLength = dashLength + gapLength;
+    const dashCount = patternLength > 0 ? Math.round(totalLength / patternLength) : 0;
+    const adjustedDash = dashCount > 0 ? totalLength / (dashCount * 2) : 0;
+    const adjustedGap  = adjustedDash * (gapLength / dashLength);
+
+    d3.select(this)
+      .style("stroke-dasharray",
+             u < 0.1 ? "none" : `${adjustedDash},${adjustedGap}`)
+      .style("stroke-dashoffset", 0);
+  })
+  .style("opacity", 1)
+  .attr("transform", d => d.transform);
 
             // Draw circles.
             let circleGroup = svg.append("g")
