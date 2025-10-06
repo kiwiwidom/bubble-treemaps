@@ -27,32 +27,33 @@
                 } catch (e) {}
 
                 if (jsonData) {
-                    sortChildrenByName(jsonData); // <--- Add this line
+                    sortChildrenByName(jsonData);
 
                     let svg = d3.select("#svgCircles");
                     svg.selectAll("*").remove();
 
                     let padding = Number(document.getElementById("paddingSlider").value);
                     let curvature = Number(document.getElementById("curvatureSlider").value);
+                    let uncertaintySliderValue = Number(document.getElementById("uncertaintySlider").value);
 
-                    drawChart(jsonData, svg, padding, (curvature === 100 ? 100000 : curvature));
+                    drawChart(jsonData, svg, padding, (curvature === 100 ? 100000 : curvature), uncertaintySliderValue);
                 }
 
                 working = false;
             }
         }
-        function drawChart(data, svg, padding, curvature) {
+        function drawChart(data, svg, padding, curvature, uncertaintySliderValue) {
             
             // NEW: This function maps an "uncertainty" value to a specific color.
             function getColorByCrowding(uncertainty) {
                 if (uncertainty >= 7) {
-                    return "#d53e2a"; // Congested (Red)
+                    return "#BB2530"; // Congested (Red)
                 } else if (uncertainty >= 5) {
-                    return "#fdae61"; // Moderately Crowded (Orange)
+                    return "#DA8F34"; // Moderately Crowded (Orange)
                 } else if (uncertainty >= 2) {
-                    return "#fee08b"; // Lightly Crowded (Yellow)
+                    return "#EED859"; // Lightly Crowded (Yellow)
                 } else {
-                    return "#66c2a5"; // Spacious (Green)
+                    return "#64AD53"; // Spacious (Green)
                 }
             }
             
@@ -75,9 +76,7 @@
                 .hierarchyRoot(root)
                 .width(renderedSVGSize.width)
                 .height(renderedSVGSize.height);
-                // The .colormap() is no longer needed here as we color manually.
 
-            // MODIFICATION: Removed the automatic .doColoring() call.
             let hierarchyRoot = bubbletreemap.doLayout().hierarchyRoot();
 
             let leafNodes = hierarchyRoot.descendants().filter(function(candidate) {
@@ -88,19 +87,29 @@
                  return candidate.children && candidate.depth > 0;
             });
 
-            // Draw contour (no changes here).
+            // Draw contour (now uses uncertaintySliderValue for opacity)
             let contourGroup = svg.append("g")
                 .attr("class", "contour");
                 
+            let dashLength, gapLength;
+            if (uncertaintySliderValue === 0) {
+                dashLength = 0; // solid line
+                gapLength = 0;
+            } else {
+                dashLength = Math.max(2, 12 - uncertaintySliderValue); // More uncertainty = shorter dashes
+                gapLength = Math.max(1, 10 - uncertaintySliderValue);  // More uncertainty = shorter gaps
+            }
+
             contourGroup.selectAll("path.outer")
                 .data(bubbletreemap.getContour())
                 .enter().append("path")
                 .attr("class", "outer")
                 .attr("d", function(arc) { return arc.d; })
-                .style("stroke", "#555") // gray dashed line
                 .style("fill", "none")
+                .style("stroke", "#bbb")
                 .style("stroke-width", "3.5px")
-                .style("stroke-dasharray", "8, 6") 
+                .style("stroke-dasharray", dashLength === 0 ? "none" : (dashLength + ", " + gapLength))
+                .style("opacity", 1)
                 .attr("transform", function(arc) { return arc.transform; });
 
             contourGroup.selectAll("path.inner")
@@ -108,9 +117,11 @@
                 .enter().append("path")
                 .attr("class", "inner")
                 .attr("d", function(arc) { return arc.d; })
-                .style("stroke", "#bbb") // gray dashed line
+                // .style("stroke", "#bbb")
                 .style("fill", "none")
                 .style("stroke-width", "2px")
+                .style("stroke-dasharray", dashLength === 0 ? "none" : (dashLength/2 + ", " + gapLength/2))
+                .style("opacity", 1)
                 .attr("transform", function(arc) { return arc.transform; });
 
 
@@ -184,6 +195,11 @@
     <div style="position: absolute; left:20px; bottom:80px;" id="curvatureSliderContainer">
         Smoothness: <input style="position: absolute; left:100px; vertical-align: middle;" type="range" min="1" max="100" value="10" class="slider" id="curvatureSlider" oninput="document.getElementById('curvatureValue').innerText = this.value; doIt();">
         <span id="curvatureValue" style="position: absolute; left: 240px; vertical-align: middle;">10</span>
+    </div>
+    <!-- Add this slider below the existing ones -->
+    <div style="position: absolute; left:20px; bottom:120px;" id="uncertaintySliderContainer">
+        Uncertainty: <input style="position: absolute; left:100px; vertical-align: middle;" type="range" min="0" max="10" value="7" class="slider" id="uncertaintySlider" oninput="document.getElementById('uncertaintyValue').innerText = this.value; doIt();">
+        <span id="uncertaintyValue" style="position: absolute; left: 240px; vertical-align: middle;">7</span>
     </div>
 
     <div id="jsonInputFieldContainer" style="float:right; width: 50%; height: 100%;">
